@@ -1,0 +1,290 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>Canvas test</title>
+<script type="text/javascript">
+	function Game()
+	{
+		var stage = document.getElementById('stage');
+		var context =  stage.getContext('2d');
+		var WIDTH = 200;
+		var HEIGHT = 200;
+		
+		var PADDLE_WIDTH = 60;
+		var PADDLE_HEIGHT = 10;
+		var BALL_HEIGHT = 10;
+		var BALL_WIDTH = 10;
+
+		var BLOCK_WIDTH = 32;
+		var BLOCK_HEIGHT = 10;
+		var ROW_NUMBER = 4;
+		var COLUMN_NUMBER = 6;
+		
+		// TICK
+		var timer = setInterval(move, 100);
+		
+		// PHYSICS
+		var paddleDifference;
+		var friction = 0.3;
+		var mouseX = WIDTH/2;
+		
+		var VELOCITYX_MAX = 8;
+		var velocityX = 4;
+		var velocityY = 8;
+		
+		var blocks_column = new Array();
+		var paddle;
+		var Ball;
+		
+		init();
+		function init()
+		{	
+			// Create blocks
+			for(var i = 0;i < COLUMN_NUMBER; i++)
+			{
+				var blocks_row = new Array();
+				for(var j = 0;j < ROW_NUMBER; j++)
+				{
+					var block = new Block((BLOCK_WIDTH + 2)* i, (BLOCK_HEIGHT + 2) * j);
+					blocks_row.push(block); 
+				}
+				
+				blocks_column.push(blocks_row);
+			}
+			
+			// Create paddle
+			paddle = new Paddle(10, HEIGHT-PADDLE_HEIGHT);
+			// Create ball
+			ball = new Ball(10, 60);
+		}
+		
+		function move()
+		{		
+			clear();
+			
+			// Draw blocks
+			for(var i = 0;i < COLUMN_NUMBER; i++)
+			{
+				for(var j = 0;j < ROW_NUMBER; j++)
+				{
+					blocks_column[i][j].draw();
+				}
+			}
+			
+			// Distance the paddle needs to travel
+			paddleDifference = mouseX - paddle.getX();
+			
+			// As we get closer minimise the distance (ease)
+			paddleDifference*= friction;
+			
+			var newX = paddle.getX() + paddleDifference;
+			
+			// Draw paddle
+			paddle.draw(newX, HEIGHT-PADDLE_HEIGHT);		
+			
+			var ballX = ball.getX();
+			var ballY = ball.getY();
+			
+			if(ballX > WIDTH || ballX < 0) // hit the sides
+			{
+				velocityX = -velocityX;
+			}
+			
+			if(ballY < 0) // hit the top
+			{	
+				velocityY = -velocityY;
+				
+			} else
+			if(ballY > HEIGHT - PADDLE_HEIGHT) // below paddle level
+			{
+				// Check whether the ball has hit the paddle
+				if(checkHit(ballX))
+				{
+					velocityY =	-velocityY;
+				} else
+				{
+					// game over
+					clearInterval(timer);	
+				}
+			}
+			
+			if(ballY < BLOCK_HEIGHT * ROW_NUMBER)
+			{
+				// Check whether the ball has hit any blocks
+				if(checkBlocks(ballX, ballY))
+				{
+					velocityY =	-velocityY;
+				}
+			}
+			
+			// add our velocity to the position
+			ballX += velocityX;	
+			ballY += velocityY;
+			
+			// Draw ball
+			ball.draw(ballX, ballY);
+		}
+		
+		stage.onmousemove = mouseMove;
+		//stage.addEventListener("mousemove", mouseMove, false);
+		function mouseMove(e)
+		{
+			// BROWSER COMPATABLITY ISSUE
+			if(!e)
+			{
+				var e = window.event;	
+			}
+			
+			if(e.clientX >= WIDTH)
+			{
+				mouseX = WIDTH;
+			}
+			if(e.clientX <= 0)
+			{
+				mouseX = 0;	
+			}
+			
+			mouseX = e.clientX;
+		}
+		
+		function checkHit(ballX)
+		{
+			var hit = false;
+			if( ballX >= paddle.getX() - (PADDLE_WIDTH / 2) && 
+				ballX <= paddle.getX() - (PADDLE_WIDTH/2) + PADDLE_WIDTH )
+			{
+				// depending on where the ball hits the paddle we work the percentage of the velocity
+				var percent = (ballX - paddle.getX()) / (PADDLE_WIDTH / 2) * VELOCITYX_MAX;
+				velocityX = percent;
+				hit = true;
+				
+			} else
+			{
+				hit = false;	
+			}
+			
+			return hit;	
+		}
+		
+		function checkBlocks(ballX, ballY)
+		{
+			var hit = false;
+			for(var i = 0;i < COLUMN_NUMBER; i++)
+			{
+				for(var j = 0;j < ROW_NUMBER; j++)
+				{
+					if(	ballY <= blocks_column[i][j].getBottom() && 
+						ballX >= blocks_column[i][j].getLeft() && 
+						ballX <= blocks_column[i][j].getRight() && 
+						blocks_column[i][j].getStage() )
+					{
+						blocks_column[i][j].setStage(false);
+						hit = true;
+						return hit;
+					}
+				}
+			}		
+		}
+				
+		function clear()
+		{
+			context.clearRect(0, 0, WIDTH, HEIGHT);	
+		}
+		
+		// BLOCK OBJECT
+		function Block(blockX, blockY)
+		{
+			// VARS
+			var x = blockX;
+			var y = blockY;
+			var onStage = true; // decides whether the block is visible or not
+			
+			this.draw = function()
+			{
+				if(onStage)
+				{
+					context.fillRect(blockX, blockY, BLOCK_WIDTH, BLOCK_HEIGHT);
+				}
+			}
+			
+			// onStage getter and setter
+			this.setStage = function(value)
+			{
+				onStage = value;	
+			}
+			this.getStage = function()
+			{
+				return onStage;	
+			}
+			
+			// position getters 
+			this.getBottom = function()
+			{
+				var bottom = blockY + BLOCK_HEIGHT;
+				return bottom;
+			}
+			this.getLeft = function()
+			{
+				return x;	
+			}
+			this.getRight = function()
+			{
+				return x + BLOCK_WIDTH;	
+			}
+		}
+		
+		function Paddle(xPos, yPos)
+		{
+			// VARS
+			var x = xPos
+			var y = yPos
+			
+			this.draw = function(newX, newY)
+			{
+				x = newX;
+				y = newY;
+				
+				context.fillRect(newX - (PADDLE_WIDTH/2), newY, PADDLE_WIDTH, PADDLE_WIDTH);	
+			}
+			
+			// position getter
+			this.getX = function()
+			{
+				return x;
+			}
+		}
+		
+		function Ball(xPos, yPos)
+		{
+			var x = xPos;
+			var y = yPos;
+			
+			this.draw = function(newX, newY)
+			{
+				x = newX;
+				y = newY;
+				context.fillRect(newX, newY, BALL_WIDTH, BALL_HEIGHT);	
+			}
+			
+			// position getters
+			this.getX = function()
+			{
+				return x;	
+			}
+			this.getY = function()
+			{
+				return y;	
+			}
+		}
+	}
+</script>
+</head>
+
+<canvas id="stage" width="200" height="200">
+	In case we don't have canvas supported browser- display this text.
+</canvas>
+
+<body onload="Game()">
+</body>
+</html>
